@@ -1,0 +1,143 @@
+---
+title: "calculating confidence intervals for surface grain size samples"
+author: "Brett Eaton"
+date: "May 24, 2019"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+This document presents a step-by-step demonstration of how the `GSDtools` package created by [Brett Eaton](https://blogs.ubc.ca/beaton/) and [Dan Moore](http://ibis.geog.ubc.ca/~rdmoore/) can be applied to your bed surface grain size data. The package implements the use of binomial sampling theory to estimate percentile confidence ranges, as described by Eaton et. al (in review). The package contains a number of functions to easily visualize the data, but this example focusses on how to generate estimates of the upper and lower confidence bounds, and how to export them for use in a spreadsheet.
+
+# Setting up your working environment
+
+We assume that you have already installed the R language on your computer, and that you have a graphical interface in which to run the code we present in this document. To install R, start at the [R Project](https://www.r-project.org/) website. We recommend using the R Studio graphical interface to run R code (which can be downloaded [here](https://www.rstudio.com/)), but you may use whatever interface  you are most comfortable with.
+
+## Installing the GSDtools package
+The `GSDtools` package is hosted on Brett Eaton's GitHub page, and is freely accessible to download. To do this, we will use commands in the `devtools` package. If you have not installed `devtools` yet, you can simply run the following command.
+
+```{r}
+if("devtools" %in% rownames(installed.packages()) == FALSE) 
+  {install.packages("devtools")}
+```
+
+Now we can install the `GSDtools` package from GitHub.
+
+```{r}
+if("GSDtools" %in% rownames(installed.packages()) == FALSE) 
+  {devtools::install_github("bceaton/GSDtools")}
+```
+
+Finally, we need to tell R that we wish to use the functions in the `GSDtools` package by running the following command.
+
+```{r}
+library(GSDtools)
+```
+
+At this point, we should be ready to go with our analysis.
+
+# Entering the data
+Users familiar with R will know that there are various ways of importing data and creating the necessary variables for analysis. To keep things simple, we will enter the grain size data as a string of numbers, the cumulative percent finer data as another string of data, and then combine them into a single table of data called a `data.frame` in R. The following line of code creates a list of grain size data in the standard Wentworth size classes.
+
+```{r}
+size = c(256, 182, 128, 90, 64, 45, 32, 22.6, 16, 11.3, 8, 5.6, 4)
+```
+
+Now lets enter the cumulative proportion finer data that corresponds to each size.
+
+```{r}
+probs = c(1.00, 0.97, 0.83, 0.76, 0.63, 0.53, 0.43, 0.32, 0.21, 0.15, 0.1, 0.05, 0)
+```
+
+Finally, we combine these two strings of number into a single data frame for analysis.
+
+```{r}
+my.data = data.frame(size, probs)
+```
+
+You can verify that the data match up properly by looking at the table.
+
+```{r}
+print(my.data)
+```
+
+We can also plot the data to ensure that it all looks right.
+
+```{r}
+plot(my.data, type = "b", log = "x", xlim = c(1, 1000))
+```
+
+
+# Estimating the confidence bounds
+Once we have a `data.frame` with the necessary data that has variables called `size` and `probs`, we can calculate any percentile of interest (e.g. $D_{50}$), and its associated confidence range, but only if we know the number of stones that were measured to define the grain size distribution. Let's assume that our distribution was based on a Wolman sample of 103 stones.
+
+```{r}
+my.n = 103
+```
+
+This can be done for a single percentile as follows:
+
+```{r}
+my.percentile = 50  #estimate the 50th percentile
+my.alpha = 0.05  #set the confidence interval to cover 95% of the data
+my.D50 = WolmanCI(cfd = my.data, n = my.n, P = my.percentile, alpha = my.alpha)
+```
+
+This produces a `data.frame` that records the percentile being estimated, the estimate of the percentile, and the upper and lower bounds for that estimate.
+
+```{r}
+print(my.D50)
+```
+
+A more useful example would be to estimate the percentiles between $D_{10}$ and $D_{90}$ in increments of 5.
+
+```{r}
+my.percentile = c(10, 15, 20, 25, 30, 35, 40, 45, 50, 
+             55, 60, 65, 70, 75, 80, 85, 90)
+
+#  Alternative code to generate you list of percentiles to estimate
+#my.percentiles = seq(from = 10, to = 90, by = 5)  #does the same thing as above
+#my.percentile = seq(from = 1, to = 90, by = 1)  #generates all percentiles, 10 to 90
+
+my.Dvalues = WolmanCI(cfd = my.data, n = my.n, P = my.percentile, alpha = my.alpha)
+```
+
+This produces a `data.frame` with several lines of data, each representing an estimated precentile, along with its confidence interval.
+
+```{r}
+head(my.Dvalues)  #this command only shows the first few lines of data
+```
+
+# Exporting the data
+To export the data as a `.csv` file, we simply specify a file name, and run the following command.
+```{r}
+my.file = "sample_data.csv"
+write.table(my.Dvalues, my.file, row.names = F, sep = ",")
+```
+
+The file created by this command will be saved to whatever your working director is. If you don't know what your working directory is, you can find out by running the command.
+
+```{r}
+getwd()
+```
+
+
+You can use `setwd` or the user interface menus to navigate to the directory where you want to save your file. In `R Studio`, you go first to the `Session` menu, then to `Set Working Directory`, and finally you choose `Choose Directory`.
+
+The file you just generated can be imported into a spreadsheet, and you can generate whatever kind of plots you would like using the data.  If you
+
+# Visualizing the data
+The `GSDtools` package also includes functions to make it easier to plot the confidence bounds. The key one is `PolyCI`. Below, we plot the grain size data as before, then add a polygon the represents the confidence interval using the same inputs as were used above to generate `my.Dvalues`. 
+```{r}
+plot(my.data, type = "b", log = "x", xlim = c(1, 1000))
+my.polygon = PolyCI(cfd = my.data, n = my.n, P = my.percentile, alpha = my.alpha)
+polygon(my.polygon, lty = 0, col = rgb(0,0,1,0.25))  #makes a blue polygon 
+abline(h = c(0.1, 0.9), lty = 2)  #add lines indicating range of confidence interval
+```
+
